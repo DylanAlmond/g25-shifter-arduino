@@ -3,12 +3,37 @@ from tkinter import messagebox
 import time
 import config as cfg
 import logging
+import ui_backend
 from typing import Any, List
+import os
 
 log = logging.getLogger("g25-driver")
 
 # keep references to Tk images so they are not garbage-collected
 _image_refs: List[Any] = []
+
+DEFAULT_BUTTON_POSITIONS = {
+    # Black button
+    "7": {"x": 240, "y": 80},
+    "6": {"x": 270, "y": 105},
+    "4": {"x": 240, "y": 130},
+    "5": {"x": 210, "y": 105},
+
+    # D-Pad
+    "0": {"x": 240, "y": 170},
+    "1": {"x": 240, "y": 210},
+    "2": {"x": 210, "y": 188},
+    "3": {"x": 270, "y": 188},
+
+    # Red buttons
+    "8": {"x": 180, "y": 245},
+    "10": {"x": 220, "y": 245},
+    "11": {"x": 260, "y": 245},
+    "9": {"x": 300, "y": 245}
+}
+
+# UI layout constants
+DEFAULT_RECT_SIZE = 14
 
 
 class MappingEditor(tk.Toplevel):
@@ -80,13 +105,13 @@ class MappingEditor(tk.Toplevel):
 
     self.conf["mappings"]["gear"] = gm
     self.conf["mappings"]["buttons"] = bm
-    try:
-      cfg.save_config(self.conf, self.config_path)
+    ok, err = ui_backend.save_config(self.conf, self.config_path)
+    if ok:
       messagebox.showinfo("Saved", "Mappings saved to config")
       self.destroy()
-    except Exception as e:
-      log.exception("Failed to save mappings to config")
-      messagebox.showerror("Error", f"Failed to save config: {e}")
+    else:
+      log.exception("Failed to save mappings to config: %s", err)
+      messagebox.showerror("Error", f"Failed to save config: {err}")
 
   def _pos_text_for(self, gear):
     gp = self.conf.get("gear_positions", {}) or {}
@@ -97,22 +122,22 @@ class MappingEditor(tk.Toplevel):
     return "pos: (not set)"
 
   def record_gear(self, gear):
-    with self.lock:
-      x = self.state.get("x", 0)
-      y = self.state.get("y", 0)
-      bits = int(self.state.get("buttons", 0))
+    snap = ui_backend.get_snapshot(self.state, self.lock)
+    x = snap.get("x", 0)
+    y = snap.get("y", 0)
+    bits = int(snap.get("buttons", 0))
     if "gear_positions" not in self.conf:
       self.conf["gear_positions"] = {}
     self.conf["gear_positions"][gear] = {
       "x": int(x), "y": int(y), "buttons": int(bits)}
-    try:
-      cfg.save_config(self.conf, self.config_path)
+    ok, err = ui_backend.save_config(self.conf, self.config_path)
+    if ok:
       self.gear_pos_labels[gear].config(text=self._pos_text_for(gear))
       messagebox.showinfo(
         "Recorded", f"Recorded {gear} -> x={x} y={y} buttons={bin(bits)}")
-    except Exception as e:
-      log.exception("Failed to save gear position")
-      messagebox.showerror("Error", f"Failed to save gear pos: {e}")
+    else:
+      log.exception("Failed to save gear position: %s", err)
+      messagebox.showerror("Error", f"Failed to save gear pos: {err}")
 
   def record_button_key(self):
     # Open a small modal and wait for a hardware button press, then capture the next keyboard key.
@@ -127,23 +152,13 @@ class MappingEditor(tk.Toplevel):
     start = time.time()
 
     def poll():
-      with self.lock:
-        last_time = self.state.get("last_pressed_time", 0)
-        last_bits = self.state.get("last_pressed_bits", 0)
-        bits = self.state.get("buttons", 0)
-
       # prefer recent recorded rising-edge bits so user doesn't need to hold hardware button
-      active = []
-      if last_bits and (time.time() - last_time) < 3.0:
-        active = [i for i in range(16) if ((last_bits >> i) & 1)]
-      elif bits:
-        active = [i for i in range(16) if ((bits >> i) & 1)]
+      active = ui_backend.active_button_list(self.state, self.lock)
 
       if active:
         lbl.config(
           text=f"Detected bits: {active}\nPress the keyboard key to assign")
         wnd.focus_set()
-        # bind to capture the next keypress
 
         def on_key(event):
           key = event.keysym.lower()
@@ -152,18 +167,20 @@ class MappingEditor(tk.Toplevel):
             self.button_entries[i].insert(0, key)
             self.conf.setdefault("mappings", {}).setdefault(
               "buttons", {})[str(i)] = key
-          try:
-            cfg.save_config(self.conf, self.config_path)
+
+          ok, err = ui_backend.save_config(self.conf, self.config_path)
+          if ok:
             messagebox.showinfo("Saved", f"Mapped bits {active} -> {key}")
+          else:
+            log.exception(
+              "Failed to save mapping during record_button_key: %s", err)
+            messagebox.showerror("Error", f"Failed to save config: {err}")
+
+          try:
+            wnd.unbind('<Key>')
           except Exception as e:
-            log.exception("Failed to save mapping during record_button_key")
-            messagebox.showerror("Error", f"Failed to save config: {e}")
-          finally:
-            try:
-              wnd.unbind('<Key>')
-            except Exception as e:
-              log.debug("Failed to unbind key handler: %s", e)
-            wnd.destroy()
+            log.debug("Failed to unbind key handler: %s", e)
+          wnd.destroy()
 
         wnd.bind('<Key>', on_key)
         return
@@ -183,34 +200,6 @@ class MappingEditor(tk.Toplevel):
 
 def gui_loop(state: dict, lock, config_path=None):
   conf = cfg.load_config(config_path)
-  # Hardcode the shifter image and button positions for the GUI.
-  import os
-  IMAGE = os.path.join(os.path.dirname(__file__), "shifter.jpg")
-  BUTTON_POSITIONS = {
-      # Black button
-      "7": {"x": 240, "y": 80},
-      "6": {"x": 270, "y": 105},
-      "4": {"x": 240, "y": 130},
-      "5": {"x": 210, "y": 105},
-
-      # D-Pad
-      "0": {"x": 240, "y": 170},
-      "1": {"x": 240, "y": 210},
-      "2": {"x": 210, "y": 188},
-      "3": {"x": 270, "y": 188},
-
-      # Red buttons
-      "8": {"x": 180, "y": 245},
-      "10": {"x": 220, "y": 245},
-      "11": {"x": 260, "y": 245},
-      "9": {"x": 300, "y": 245}
-  }
-  conf.setdefault("ui", {})
-  conf["ui"]["image"] = IMAGE
-  conf["ui"]["button_positions"] = BUTTON_POSITIONS
-  conf["ui"]["rect_size"] = 14
-  conf["ui"]["max_width"] = 1040
-  conf["ui"]["max_height"] = 720
 
   # attempt to use PIL for PNG support; fallback to tk.PhotoImage
   Image: Any = None
@@ -244,15 +233,13 @@ def gui_loop(state: dict, lock, config_path=None):
   tk.Label(root, textvariable=raw_var, font=("Courier", 8)).pack()
 
   # load UI image
-  ui_conf = conf.get("ui", {}) or {}
-  img_path = ui_conf.get("image")
+  img_path = "shifter.jpg"
   if img_path and not os.path.isabs(img_path):
     img_path = os.path.join(os.path.dirname(__file__), img_path)
 
-  # sizing defaults (configurable via conf['ui'])
-  ui_conf = conf.get("ui", {}) or {}
-  max_w = int(ui_conf.get("max_width", 520))
-  max_h = int(ui_conf.get("max_height", 360))
+  # sizing defaults
+  max_w = 1040
+  max_h = 720
 
   tk_image = None
   img_w = min(480, max_w)
@@ -362,14 +349,7 @@ def gui_loop(state: dict, lock, config_path=None):
   port_menu = None
 
   def list_com_ports() -> list:
-    if LIST_PORTS_AVAILABLE and list_ports:
-      try:
-        ports = [p.device for p in list_ports.comports()]
-        return ports
-      except Exception as e:
-        log.debug("Failed to list COM ports: %s", e)
-        return []
-    return []
+    return ui_backend.list_com_ports()
 
   def refresh_ports():
     ports = list_com_ports()
@@ -444,11 +424,9 @@ def gui_loop(state: dict, lock, config_path=None):
       except Exception as e:
         log.debug("Failed to delete overlay items: %s", e)
     overlay_items.clear()
-    ui = conf.get("ui", {}) or {}
-    positions = ui.get("button_positions", {}) or {}
     labels = conf.get("mappings", {}).get("buttons", {}) or {}
-    r = int(ui.get("rect_size", 14))
-    for i_str, pos in positions.items():
+    r = DEFAULT_RECT_SIZE
+    for i_str, pos in DEFAULT_BUTTON_POSITIONS.items():
       try:
         i = int(i_str)
       except (ValueError, TypeError):

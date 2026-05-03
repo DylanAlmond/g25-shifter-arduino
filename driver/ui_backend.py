@@ -1,0 +1,92 @@
+import time
+import logging
+from typing import List, Tuple, Optional
+
+import config as cfg
+
+log = logging.getLogger("g25-driver")
+
+
+DEFAULT_BUTTON_POSITIONS = {
+    # Black button
+    "7": {"x": 240, "y": 80},
+    "6": {"x": 270, "y": 105},
+    "4": {"x": 240, "y": 130},
+    "5": {"x": 210, "y": 105},
+
+    # D-Pad
+    "0": {"x": 240, "y": 170},
+    "1": {"x": 240, "y": 210},
+    "2": {"x": 210, "y": 188},
+    "3": {"x": 270, "y": 188},
+
+    # Red buttons
+    "8": {"x": 180, "y": 245},
+    "10": {"x": 220, "y": 245},
+    "11": {"x": 260, "y": 245},
+    "9": {"x": 300, "y": 245}
+}
+
+
+def save_config(conf: dict, path: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+  """Save config using `config.save_config` and return (ok, error_message).
+
+  The wrapper captures exceptions and logs them, returning a human-friendly
+  error string on failure.
+  """
+  try:
+    cfg.save_config(conf, path)
+    return True, None
+  except Exception as e:
+    log.exception("Failed to save config")
+    return False, str(e)
+
+
+def list_com_ports() -> List[str]:
+  """Return a list of available serial port device names.
+
+  Handles missing `pyserial` gracefully and logs failures.
+  """
+  try:
+    import serial.tools.list_ports as list_ports
+  except Exception:
+    return []
+
+  try:
+    return [p.device for p in list_ports.comports()]
+  except Exception as e:
+    log.debug("Failed to list COM ports: %s", e)
+    return []
+
+
+def get_snapshot(state: dict, lock) -> dict:
+  """Return a shallow copy of the relevant state fields under lock."""
+  with lock:
+    return {
+        "gear_arduino": state.get("gear_arduino"),
+        "gear_computed": state.get("gear_computed"),
+        "x": state.get("x", 0),
+        "y": state.get("y", 0),
+        "buttons": state.get("buttons", 0),
+        "raw": state.get("raw", ""),
+        "last_pressed_bits": state.get("last_pressed_bits", 0),
+        "last_pressed_time": state.get("last_pressed_time", 0.0),
+    }
+
+
+def active_button_list(state: dict, lock, max_age: float = 3.0) -> List[int]:
+  """Return a list of currently-active button indices.
+
+  Prefers recently-recorded rising-edge bits (within `max_age` seconds),
+  otherwise falls back to currently-pressed bits.
+  """
+  snap = get_snapshot(state, lock)
+  last_bits = snap.get("last_pressed_bits", 0)
+  last_time = snap.get("last_pressed_time", 0.0)
+  bits = snap.get("buttons", 0)
+
+  if last_bits and (time.time() - last_time) < max_age:
+    return [i for i in range(16) if ((last_bits >> i) & 1)]
+  if bits:
+    return [i for i in range(16) if ((bits >> i) & 1)]
+  return []
