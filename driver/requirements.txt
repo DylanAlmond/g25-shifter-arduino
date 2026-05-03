@@ -1,3 +1,4 @@
 pyserial
 keyboard
 logging
+pillow
