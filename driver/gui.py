@@ -50,6 +50,7 @@ class MappingEditor(tk.Toplevel):
   Presents fields for gear positions and button->key mappings and supports
   recording current stick positions and button presses as mapping hints.
   """
+
   def __init__(self, master, state, lock, config_path=None):
     super().__init__(master)
     self.title("Mapping Editor")
@@ -67,7 +68,7 @@ class MappingEditor(tk.Toplevel):
     self.gear_entries = {}
     self.gear_pos_labels = {}
     row = 0
-    for g in ["1", "2", "3", "4", "5", "6", "R", "N"]:
+    for g in ["1", "2", "3", "4", "5", "6", "R", "up", "down"]:
       tk.Label(gear_frame, text=g).grid(row=row, column=0, sticky="w")
       e = tk.Entry(gear_frame, width=10)
       e.grid(row=row, column=1, sticky="w", padx=4, pady=2)
@@ -78,8 +79,16 @@ class MappingEditor(tk.Toplevel):
       lbl.grid(row=row, column=2, sticky="w", padx=6)
       self.gear_pos_labels[g] = lbl
 
-      tk.Button(gear_frame, text="Record", command=lambda g=g: self.record_gear(
-        g)).grid(row=row, column=3, padx=6)
+      # Exclude sequential gears from recording since they are not physical positions and would be confusing to record
+      if g in ["up", "down"]:
+        tk.Label(gear_frame, text="(seq)").grid(row=row, column=3, padx=6)
+      else:
+        tk.Button(
+          gear_frame,
+          text="Record",
+          command=lambda g=g: self.record_gear(g)
+        ).grid(row=row, column=3, padx=6)
+
       row += 1
 
     btn_frame = tk.LabelFrame(

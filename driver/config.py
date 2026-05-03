@@ -39,7 +39,9 @@ DEFAULT_CONFIG = {
       "5": "5",
       "6": "6",
       "R": "r",
-      "N": ""
+      "N": "",
+      "up": "page_up",
+      "down": "page_down"
     },
     "buttons": {
       "0": "up",

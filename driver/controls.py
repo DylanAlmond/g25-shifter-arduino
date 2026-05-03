@@ -13,6 +13,12 @@ try:
 except ImportError:
   keyboard = None
 
+import time
+
+SEQ_COOLDOWN = 0.15  # seconds between sequential shifts
+_last_seq_time = 0
+_last_seq_dir = None
+
 log = logging.getLogger("g25-driver")
 
 last_gear = None
@@ -23,22 +29,63 @@ def apply_gear(gear: str, conf: dict):
   """
   Emit keyboard events for a gear transition.
 
-  Releases any previously-held gear keys and presses the new gear key if
-  configured. No-op when the gear is unchanged.
+  H-pattern gears are held.
+  Sequential gears ("up"/"down") are tapped once per movement.
   """
-  global last_gear
+  global last_gear, _last_seq_time, _last_seq_dir
+
+  gear_map = conf.get("mappings", {}).get("gear", {})
+
+  H_GEARS = ["1", "2", "3", "4", "5", "6", "r"]
+
+  # Reset sequential state when leaving sequential mode
+  if gear not in ["up", "down"]:
+    _last_seq_dir = None
+
+  # Sequential (momentary tap)
+  if gear in ["up", "down"]:
+    now = time.time()
+
+    # trigger only on change (prevents repeat spam)
+    if gear == _last_seq_dir:
+      return
+
+    # safety cooldown
+    if (now - _last_seq_time) < SEQ_COOLDOWN:
+      return
+
+    key = gear_map.get(gear, "")
+
+    if key and keyboard:
+      try:
+        # reliable tap (some systems ignore press_and_release)
+        keyboard.press(key)
+        time.sleep(0.01)
+        keyboard.release(key)
+
+        log.info(f"SEQUENTIAL {gear} -> {key}")
+      except Exception as e:
+        log.debug("SEQUENTIAL failed (%s): %s", key, e)
+
+    _last_seq_dir = gear
+    _last_seq_time = now
+    last_gear = None
+    return
 
   if gear == last_gear:
     return
 
-  for k in ["1", "2", "3", "4", "5", "6", "r"]:
-    if keyboard:
+  # Release previous H-pattern gear
+  if last_gear in H_GEARS:
+    old_key = gear_map.get(last_gear, "")
+    if old_key and keyboard:
       try:
-        keyboard.release(k)
+        keyboard.release(old_key)
       except Exception as e:
-        log.debug("keyboard.release(%s) failed: %s", k, e)
+        log.debug("keyboard.release(%s) failed: %s", old_key, e)
 
-  key = conf.get("mappings", {}).get("gear", {}).get(gear, "")
+  # H-pattern hold behavior
+  key = gear_map.get(gear, "")
 
   if key and keyboard:
     try:

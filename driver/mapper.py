@@ -9,6 +9,7 @@ structures for mapping to keyboard keys.
 from typing import Optional, Dict, Any
 
 REVERSE_BUTTON = 1 << 14
+SEQUENTIAL_BUTTON = 1 << 12
 
 
 def compute_gear(x: int, y: int, buttons: int, offset_x: int = 0, offset_y: int = 0, deadzone: int = 80, gear_positions: Optional[Dict[str, Any]] = None) -> str:
@@ -19,6 +20,22 @@ def compute_gear(x: int, y: int, buttons: int, offset_x: int = 0, offset_y: int 
   # apply offsets (match raw Arduino readCentered: analogRead - 512)
   xx = x + offset_x
   yy = y + offset_y
+
+  # if sequential shifting button is pressed, determine upshift/downshift based on Y-axis and ignore X-axis
+  sequentialPressed = bool(buttons & SEQUENTIAL_BUTTON)
+
+  if sequentialPressed:
+    # center = no shift
+    if abs(yy) < deadzone:
+      return "N"
+
+    # push forward / positive Y = downshift
+    if yy > deadzone:
+      return "down"
+
+    # pull backward / negative Y = upshift
+    if yy < -deadzone:
+      return "up"
 
   # if explicit recorded positions are available, check whether the current
   # X/Y falls within any recorded gear 'range' (distance threshold). Prefer
