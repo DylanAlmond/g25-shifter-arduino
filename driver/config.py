@@ -1,3 +1,10 @@
+"""
+Configuration loader and saver.
+
+This module exposes `load_config` which merges user config with `DEFAULT_CONFIG`
+and `save_config` which writes config atomically. Corrupt or missing configs
+are replaced with defaults.
+"""
 import json
 import os
 import tempfile
@@ -96,6 +103,7 @@ CONFIG_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "config.json")
 
 
 def _merge_defaults(conf: dict) -> dict:
+  """Merge `conf` over `DEFAULT_CONFIG`, returning a new dict."""
   merged = copy.deepcopy(DEFAULT_CONFIG)
 
   def merge(a, b):
@@ -110,6 +118,12 @@ def _merge_defaults(conf: dict) -> dict:
 
 
 def load_config(path: Optional[str] = None) -> dict:
+  """
+  Load a configuration file, merging it with defaults.
+
+  If the file does not exist it will be created with defaults. If the file
+  exists but is invalid JSON, defaults are used and the file overwritten.
+  """
   if path is None:
     path = CONFIG_PATH_DEFAULT
 
@@ -130,6 +144,11 @@ def load_config(path: Optional[str] = None) -> dict:
 
 
 def save_config(conf: dict, path: Optional[str] = None) -> None:
+  """
+  Atomically save `conf` to `path` (or default path).
+
+  Uses `os.replace` with a temporary file to avoid partial writes.
+  """
   if path is None:
     path = CONFIG_PATH_DEFAULT
 

@@ -1,3 +1,10 @@
+"""Serial port manager and reader for the G25 shifter.
+
+This module runs a background `serial_thread` that opens a serial device,
+reads lines from the controller, parses them via `parse_line`, and updates
+the shared `input_state` structure. Use `switch_port` to request a runtime
+port change and `current_port` to query the active device name.
+"""
 import threading
 import time
 import logging
@@ -21,18 +28,31 @@ _timeout = None
 
 
 def switch_port(new_port: str):
-  """Request switching the serial connection to `new_port`.
+  """
+  Request switching the serial connection to `new_port`.
 
   This is non-blocking; the serial manager thread will attempt to reopen
   the requested port and apply the change.
   """
   global _desired_port
+
   with _port_lock:
     _desired_port = new_port
   log.info(f"Requested serial port switch to {new_port}")
 
 
 def parse_line(line: str):
+  """
+  Parse a single line from the serial device.
+
+  Supported formats:
+  - 5-part: <prefix>,<gear>,<x>,<y>,<16bit-button-binary>
+    -> returns (gear, x, y, buttons)
+  - 4-part: <prefix>,<x>,<y>,<16bit-button-binary>
+    -> returns ("", x, y, buttons)
+
+  Returns None on parse errors or unexpected formats.
+  """
   parts = line.split(",")
 
   if len(parts) == 5:
@@ -68,6 +88,14 @@ def parse_line(line: str):
 
 
 def serial_thread(port: str, baud: int, timeout: float):
+  """
+  Background thread that opens and reads from the serial device.
+
+  Opens `port` at `baud` using `timeout` and continuously reads lines.
+  When a port switch is requested via `switch_port`, the thread will close
+  and reopen the connection. The thread exits when `input_state.running`
+  becomes False.
+  """
   if serial is None:
     log.error("pyserial not installed")
     return

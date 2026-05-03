@@ -1,4 +1,11 @@
 
+"""
+Geometry and mapping helpers.
+
+Provides `compute_gear` which determines the gear based on X/Y analog input
+and button bitfields, and helpers for converting button bitfields to usable
+structures for mapping to keyboard keys.
+"""
 from typing import Optional, Dict, Any
 
 REVERSE_BUTTON = 1 << 14
@@ -93,10 +100,16 @@ def compute_gear(x: int, y: int, buttons: int, offset_x: int = 0, offset_y: int 
 
 
 def buttons_to_bits(buttons_int: int) -> dict:
+  """Return a dict mapping button index -> boolean pressed state."""
   return {i: bool((buttons_int >> i) & 1) for i in range(16)}
 
 
 def map_buttons_to_keys(buttons_int: int, mappings: dict) -> dict:
+  """
+  Map a button bitfield to {index: {'active': bool, 'key': str}}.
+
+  `mappings` maps stringified indices to key names.
+  """
   bits = buttons_to_bits(buttons_int)
   result = {}
   for i, active in bits.items():

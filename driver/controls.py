@@ -1,3 +1,10 @@
+"""
+Keyboard control helpers.
+
+Maps computed gears and button bitfields to keyboard events using the
+optional `keyboard` library. If `keyboard` is not installed, mapping logic
+still runs but no key presses are emitted.
+"""
 import logging
 import mapper
 
@@ -13,6 +20,12 @@ last_bits = {i: False for i in range(16)}
 
 
 def apply_gear(gear: str, conf: dict):
+  """
+  Emit keyboard events for a gear transition.
+
+  Releases any previously-held gear keys and presses the new gear key if
+  configured. No-op when the gear is unchanged.
+  """
   global last_gear
 
   if gear == last_gear:
@@ -38,6 +51,12 @@ def apply_gear(gear: str, conf: dict):
 
 
 def handle_buttons(buttons: int, conf: dict):
+  """
+  Handle button bitfield transitions and emit press/release events.
+
+  `buttons` is a 16-bit integer where each bit corresponds to one button.
+  `conf` provides `mappings.buttons` mapping indices to key names.
+  """
   global last_bits
 
   mapping = conf.get("mappings", {}).get("buttons", {})

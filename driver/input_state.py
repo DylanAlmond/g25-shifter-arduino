@@ -1,3 +1,9 @@
+"""
+Shared runtime state for the driver.
+
+This module exports `state` (a dict), `lock` (a threading.Lock) and `running`
+flag used by background threads to coordinate and signal shutdown.
+"""
 import threading
 
 lock = threading.Lock()

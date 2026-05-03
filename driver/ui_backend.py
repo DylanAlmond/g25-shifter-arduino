@@ -1,3 +1,10 @@
+"""
+UI backend helpers for the GUI.
+
+Small wrappers around config I/O, COM-port listing, and simple `input_state`
+snapshot helpers used by the GUI layer to keep UI concerns separated from
+business logic.
+"""
 import time
 import logging
 from typing import List, Tuple, Optional
@@ -8,7 +15,8 @@ log = logging.getLogger("g25-driver")
 
 
 def save_config(conf: dict, path: Optional[str] = None) -> Tuple[bool, Optional[str]]:
-  """Save config using `config.save_config` and return (ok, error_message).
+  """
+  Save config using `config.save_config` and return (ok, error_message).
 
   The wrapper captures exceptions and logs them, returning a human-friendly
   error string on failure.
@@ -54,7 +62,8 @@ def get_snapshot(state: dict, lock) -> dict:
 
 
 def active_button_list(state: dict, lock, max_age: float = 3.0) -> List[int]:
-  """Return a list of currently-active button indices.
+  """
+  Return a list of currently-active button indices.
 
   Prefers recently-recorded rising-edge bits (within `max_age` seconds),
   otherwise falls back to currently-pressed bits.

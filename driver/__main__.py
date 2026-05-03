@@ -1,3 +1,9 @@
+"""
+Entry point for the G25 driver CLI.
+
+Provides `main()` which starts the serial manager and either the GUI or
+the headless processing loop depending on CLI flags.
+"""
 import argparse
 import threading
 import time
@@ -14,6 +20,12 @@ log = setup_logging()
 
 
 def main():
+  """
+  Parse CLI args and run the serial and main loop threads.
+
+  When `--gui` is used the Tk GUI is shown; exiting the GUI will signal
+  shutdown by clearing `input_state.running`.
+  """
   p = argparse.ArgumentParser()
   p.add_argument("--gui", action="store_true")
   p.add_argument("--config", "-c", default=None)

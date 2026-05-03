@@ -1,3 +1,10 @@
+"""
+Tkinter GUI for calibration and mapping.
+
+This module provides `gui_loop` which starts a simple Tk UI for visualizing
+the shifter, calibrating offsets, and editing gear/button mappings via the
+`MappingEditor` dialog.
+"""
 import tkinter as tk
 from tkinter import messagebox
 import time
@@ -37,6 +44,12 @@ DEFAULT_RECT_SIZE = 14
 
 
 class MappingEditor(tk.Toplevel):
+  """
+  Modal dialog to edit gear and button mappings.
+
+  Presents fields for gear positions and button->key mappings and supports
+  recording current stick positions and button presses as mapping hints.
+  """
   def __init__(self, master, state, lock, config_path=None):
     super().__init__(master)
     self.title("Mapping Editor")
@@ -195,6 +208,14 @@ class MappingEditor(tk.Toplevel):
 
 
 def gui_loop(state: dict, lock, config_path=None):
+  """
+  Start the Tk mainloop for the calibration/mapping GUI.
+
+  Args:
+    state: shared input_state dict.
+    lock: threading lock protecting `state`.
+    config_path: optional path to configuration file.
+  """
   conf = cfg.load_config(config_path)
 
   # attempt to use PIL for PNG support; fallback to tk.PhotoImage

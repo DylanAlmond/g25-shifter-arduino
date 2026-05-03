@@ -1,3 +1,12 @@
+"""
+Main processing loop for the driver.
+
+This module exposes `main_loop` which periodically reads the shared
+`input_state`, computes the current gear via `mapper.compute_gear`, updates
+`input_state`, and calls `apply_gear` and `handle_buttons` to emit keyboard
+events. The loop reloads configuration periodically and exits when
+`input_state.running` is False.
+"""
 import time
 import logging
 
@@ -11,6 +20,12 @@ log = logging.getLogger("g25-driver")
 
 
 def main_loop(config_path=None):
+  """
+  Run the main application loop.
+
+  Args:
+    config_path: Optional path to the config file. If None, defaults are used.
+  """
   conf = cfg.load_config(config_path)
 
   update_hz = conf.get("controls", {}).get("update_hz", 120)
