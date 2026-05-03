@@ -239,7 +239,7 @@ def gui_loop(state: dict, lock, config_path=None):
     PIL_AVAILABLE = False
 
   root = tk.Tk()
-  root.title("G25 Driver — Calibration & Mapping")
+  root.title("G25 Shifter Calibration & Mapping")
 
   gear_var = tk.StringVar()
   xy_var = tk.StringVar()
