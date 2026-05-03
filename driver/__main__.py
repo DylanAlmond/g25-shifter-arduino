@@ -10,7 +10,7 @@ from logging_setup import setup_logging
 from serial_reader import serial_thread
 from loop import main_loop
 from calibration import calibrate_cli
-from input_state import state, lock
+import input_state
 
 log = setup_logging()
 
@@ -49,20 +49,36 @@ def main():
     sys.exit(0)
 
   if args.gui:
-    threading.Thread(
+    main_t = threading.Thread(
         target=main_loop,
         args=(args.config,),
         daemon=True
-    ).start()
+    )
+    main_t.start()
 
-    gui.gui_loop(state, lock, args.config)
+    gui.gui_loop(input_state.state, input_state.lock, args.config)
+
+    # GUI exited — signal shutdown and join threads
+    input_state.running = False
+    log.info("shutdown")
+    try:
+      main_t.join(timeout=2.0)
+    except RuntimeError as e:
+      log.debug("main thread join failed: %s", e)
+    try:
+      t.join(timeout=2.0)
+    except RuntimeError as e:
+      log.debug("serial thread join failed: %s", e)
   else:
     try:
       main_loop(args.config)
     except KeyboardInterrupt:
-      global running
-      running = False
+      input_state.running = False
       log.info("shutdown")
+      try:
+        t.join(timeout=2.0)
+      except RuntimeError as e:
+        log.debug("serial thread join failed: %s", e)
 
 
 if __name__ == "__main__":

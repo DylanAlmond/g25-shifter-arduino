@@ -3,7 +3,7 @@ import mapper
 
 try:
   import keyboard
-except Exception:
+except ImportError:
   keyboard = None
 
 from input_state import state, lock
@@ -24,8 +24,8 @@ def apply_gear(gear: str, conf: dict):
     if keyboard:
       try:
         keyboard.release(k)
-      except Exception:
-        pass
+      except Exception as e:
+        log.debug("keyboard.release(%s) failed: %s", k, e)
 
   key = conf.get("mappings", {}).get("gear", {}).get(gear, "")
 
@@ -33,8 +33,8 @@ def apply_gear(gear: str, conf: dict):
     try:
       keyboard.press(key)
       log.info(f"GEAR {gear} -> {key}")
-    except Exception:
-      pass
+    except Exception as e:
+      log.debug("keyboard.press(%s) failed: %s", key, e)
 
   last_gear = gear
 
@@ -54,10 +54,16 @@ def handle_buttons(buttons: int, conf: dict):
 
     if active and not prev:
       if keyboard and key:
-        keyboard.press(key)
+        try:
+          keyboard.press(key)
+        except Exception as e:
+          log.debug("keyboard.press(%s) failed: %s", key, e)
 
     elif not active and prev:
       if keyboard and key:
-        keyboard.release(key)
+        try:
+          keyboard.release(key)
+        except Exception as e:
+          log.debug("keyboard.release(%s) failed: %s", key, e)
 
     last_bits[i] = active

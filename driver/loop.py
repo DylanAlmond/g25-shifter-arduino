@@ -4,7 +4,7 @@ import logging
 import config as cfg
 import mapper
 
-from input_state import state, lock
+import input_state
 from controls import apply_gear, handle_buttons
 
 log = logging.getLogger("g25-driver")
@@ -18,7 +18,7 @@ def main_loop(config_path=None):
 
   last_reload = time.time()
 
-  while True:
+  while input_state.running:
     start = time.perf_counter()
 
     now = time.time()
@@ -28,10 +28,10 @@ def main_loop(config_path=None):
       target_dt = 1.0 / float(update_hz)
       last_reload = now
 
-    with lock:
-      x = state["x"]
-      y = state["y"]
-      buttons = state["buttons"]
+    with input_state.lock:
+      x = input_state.state["x"]
+      y = input_state.state["y"]
+      buttons = input_state.state["buttons"]
 
     offset_x = conf["calibration"]["offset_x"]
     offset_y = conf["calibration"]["offset_y"]
@@ -44,8 +44,8 @@ def main_loop(config_path=None):
         conf.get("gear_positions", {})
     )
 
-    with lock:
-      state["gear_computed"] = gear
+    with input_state.lock:
+      input_state.state["gear_computed"] = gear
 
     apply_gear(gear, conf)
     handle_buttons(buttons, conf)

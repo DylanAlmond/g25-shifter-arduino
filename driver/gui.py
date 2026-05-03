@@ -2,7 +2,10 @@ import tkinter as tk
 from tkinter import messagebox
 import time
 import config as cfg
+import logging
 from typing import Any, List
+
+log = logging.getLogger("g25-driver")
 
 # keep references to Tk images so they are not garbage-collected
 _image_refs: List[Any] = []
@@ -82,6 +85,7 @@ class MappingEditor(tk.Toplevel):
       messagebox.showinfo("Saved", "Mappings saved to config")
       self.destroy()
     except Exception as e:
+      log.exception("Failed to save mappings to config")
       messagebox.showerror("Error", f"Failed to save config: {e}")
 
   def _pos_text_for(self, gear):
@@ -107,6 +111,7 @@ class MappingEditor(tk.Toplevel):
       messagebox.showinfo(
         "Recorded", f"Recorded {gear} -> x={x} y={y} buttons={bin(bits)}")
     except Exception as e:
+      log.exception("Failed to save gear position")
       messagebox.showerror("Error", f"Failed to save gear pos: {e}")
 
   def record_button_key(self):
@@ -151,12 +156,13 @@ class MappingEditor(tk.Toplevel):
             cfg.save_config(self.conf, self.config_path)
             messagebox.showinfo("Saved", f"Mapped bits {active} -> {key}")
           except Exception as e:
+            log.exception("Failed to save mapping during record_button_key")
             messagebox.showerror("Error", f"Failed to save config: {e}")
           finally:
             try:
               wnd.unbind('<Key>')
-            except Exception:
-              pass
+            except Exception as e:
+              log.debug("Failed to unbind key handler: %s", e)
             wnd.destroy()
 
         wnd.bind('<Key>', on_key)
@@ -214,7 +220,7 @@ def gui_loop(state: dict, lock, config_path=None):
     Image = PILImage
     ImageTk = PILImageTk
     PIL_AVAILABLE = True
-  except Exception:
+  except ImportError:
     PIL_AVAILABLE = False
 
   root = tk.Tk()
@@ -344,7 +350,7 @@ def gui_loop(state: dict, lock, config_path=None):
   try:
     import serial.tools.list_ports as list_ports
     LIST_PORTS_AVAILABLE = True
-  except Exception:
+  except ImportError:
     list_ports = None
     LIST_PORTS_AVAILABLE = False
 
@@ -360,7 +366,8 @@ def gui_loop(state: dict, lock, config_path=None):
       try:
         ports = [p.device for p in list_ports.comports()]
         return ports
-      except Exception:
+      except Exception as e:
+        log.debug("Failed to list COM ports: %s", e)
         return []
     return []
 
@@ -388,18 +395,26 @@ def gui_loop(state: dict, lock, config_path=None):
       cfg.save_config(conf, config_path)
       saved = True
     except Exception as e:
+      log.exception("Failed to save serial port to config")
       port_status_var.set(f"Failed to save config: {e}")
       saved = False
 
     # request serial switch
     try:
       from serial_reader import switch_port
+    except ImportError as e:
+      log.exception("Failed to import serial_reader for port switching")
+      port_status_var.set(f"Failed to switch: serial support missing")
+      return
+
+    try:
       switch_port(port)
       if saved:
         port_status_var.set(f"Saved & switching to {port}")
       else:
         port_status_var.set(f"Switching to {port} (config save failed)")
     except Exception as e:
+      log.exception("Error while requesting serial port switch")
       if saved:
         port_status_var.set(f"Saved to config, but failed to switch: {e}")
       else:
@@ -407,14 +422,15 @@ def gui_loop(state: dict, lock, config_path=None):
 
   port_option = tk.OptionMenu(port_frame, port_var, "")
   port_option.pack(side="left", padx=6)
-  tk.Button(port_frame, text="Refresh", command=refresh_ports).pack(side="left")
+  tk.Button(port_frame, text="Refresh",
+            command=refresh_ports).pack(side="left")
   tk.Label(port_frame, textvariable=port_status_var).pack(side="left", padx=6)
 
   # initial population
   try:
     refresh_ports()
-  except Exception:
-    pass
+  except Exception as e:
+    log.exception("refresh_ports() failed: %s", e)
 
   # create overlay rectangles for configured button positions
   overlay_items = {}
@@ -425,8 +441,8 @@ def gui_loop(state: dict, lock, config_path=None):
       try:
         canvas.delete(v[0])
         canvas.delete(v[1])
-      except Exception:
-        pass
+      except Exception as e:
+        log.debug("Failed to delete overlay items: %s", e)
     overlay_items.clear()
     ui = conf.get("ui", {}) or {}
     positions = ui.get("button_positions", {}) or {}
@@ -435,7 +451,7 @@ def gui_loop(state: dict, lock, config_path=None):
     for i_str, pos in positions.items():
       try:
         i = int(i_str)
-      except Exception:
+      except (ValueError, TypeError):
         continue
       if not pos:
         continue
@@ -475,8 +491,10 @@ def gui_loop(state: dict, lock, config_path=None):
       try:
         canvas.itemconfig(rect_id, fill=color)
         canvas.tag_raise(txt_id)
-      except Exception:
-        pass
+      except tk.TclError as e:
+        log.debug("Canvas update failed: %s", e)
+      except Exception as e:
+        log.debug("Unexpected canvas update error: %s", e)
 
     root.after(50, update)
 

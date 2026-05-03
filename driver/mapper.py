@@ -33,7 +33,7 @@ def compute_gear(x: int, y: int, buttons: int, offset_x: int = 0, offset_y: int 
         gy = int(pos.get("y", 0))
         btn_val = pos.get("buttons", 0)
         req_buttons = int(btn_val) if btn_val is not None else 0
-      except Exception:
+      except (TypeError, ValueError, AttributeError):
         continue
 
       # if this recorded position requires buttons and they are not

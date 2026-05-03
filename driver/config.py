@@ -2,7 +2,10 @@ import json
 import os
 import tempfile
 import copy
+import logging
 from typing import Optional
+
+log = logging.getLogger("g25-driver")
 
 DEFAULT_CONFIG = {
   "serial": {
@@ -115,7 +118,8 @@ def load_config(path: Optional[str] = None) -> dict:
       with open(path, "r", encoding="utf-8") as f:
         conf = json.load(f)
       return _merge_defaults(conf)
-    except Exception:
+    except (json.JSONDecodeError, OSError, ValueError) as e:
+      log.exception("Failed to load config, using defaults: %s", e)
       conf = _merge_defaults({})
       save_config(conf, path)
       return conf
@@ -142,5 +146,5 @@ def save_config(conf: dict, path: Optional[str] = None) -> None:
     if os.path.exists(tmp):
       try:
         os.remove(tmp)
-      except Exception:
-        pass
+      except OSError as e:
+        log.debug("Failed to remove temp config file %s: %s", tmp, e)

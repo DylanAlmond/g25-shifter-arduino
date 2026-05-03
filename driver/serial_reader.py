@@ -1,15 +1,15 @@
+import threading
 import time
 import logging
 
 try:
   import serial
-except Exception:
+except ImportError:
   serial = None
 
-from input_state import state, lock, running
+import input_state
 
 log = logging.getLogger("g25-driver")
-import threading
 
 # Internal state for runtime port switching
 _port_lock = threading.Lock()
@@ -52,7 +52,7 @@ def parse_line(line: str):
 
       buttons = int(buttons_s, 2)
       return gear, x, y, buttons
-    except Exception:
+    except (ValueError, TypeError):
       return None
 
   elif len(parts) == 4:
@@ -66,7 +66,7 @@ def parse_line(line: str):
 
       buttons = int(buttons_s, 2)
       return "", x, y, buttons
-    except Exception:
+    except (ValueError, TypeError):
       return None
 
   return None
@@ -85,7 +85,7 @@ def serial_thread(port: str, baud: int, timeout: float):
   _timeout = timeout
 
   # Manager loop: attempt to open the requested port and read continuously.
-  while running:
+  while input_state.running:
     with _port_lock:
       desired = _desired_port
 
@@ -100,8 +100,12 @@ def serial_thread(port: str, baud: int, timeout: float):
           _current_port = desired
           _desired_port = None
         log.info(f"Serial opened {_current_port}@{_baud}")
-      except Exception as e:
+      except (serial.SerialException, OSError) as e:
         log.error(f"Serial open failed: {e}")
+        time.sleep(1.0)
+        continue
+      except Exception as e:
+        log.exception("Unexpected error opening serial port: %s", e)
         time.sleep(1.0)
         continue
 
@@ -117,8 +121,8 @@ def serial_thread(port: str, baud: int, timeout: float):
         if desired and desired != _current_port:
           try:
             _ser.close()
-          except Exception:
-            pass
+          except OSError as e:
+            log.debug("Error closing serial before port switch: %s", e)
           _ser = None
           with _port_lock:
             _current_port = None
@@ -131,26 +135,37 @@ def serial_thread(port: str, baud: int, timeout: float):
 
       gear, x, y, buttons = parsed
 
-      with lock:
-        prev = state["buttons"]
-        state["gear"] = gear
-        state["x"] = x
-        state["y"] = y
-        state["buttons"] = buttons
-        state["raw"] = line
+      with input_state.lock:
+        prev = input_state.state["buttons"]
+        input_state.state["gear_arduino"] = gear
+        input_state.state["x"] = x
+        input_state.state["y"] = y
+        input_state.state["buttons"] = buttons
+        input_state.state["raw"] = line
 
         rising = buttons & (~prev)
         if rising:
-          state["last_pressed_bits"] = rising
-          state["last_pressed_time"] = time.time()
+          input_state.state["last_pressed_bits"] = rising
+          input_state.state["last_pressed_time"] = time.time()
 
-    except Exception as e:
+    except serial.SerialException as e:
       log.error(f"serial error: {e}")
       try:
         if _ser:
           _ser.close()
-      except Exception:
-        pass
+      except OSError as e2:
+        log.debug("Error closing serial: %s", e2)
+      _ser = None
+      with _port_lock:
+        _current_port = None
+      time.sleep(0.1)
+    except Exception as e:
+      log.exception("Unexpected serial processing error: %s", e)
+      try:
+        if _ser:
+          _ser.close()
+      except OSError as e2:
+        log.debug("Error closing serial: %s", e2)
       _ser = None
       with _port_lock:
         _current_port = None
@@ -160,5 +175,5 @@ def serial_thread(port: str, baud: int, timeout: float):
   try:
     if _ser:
       _ser.close()
-  except Exception:
-    pass
+  except OSError as e:
+    log.debug("Error closing serial during cleanup: %s", e)
