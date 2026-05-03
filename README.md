@@ -1,3 +1,5 @@
+![MIT License](https://img.shields.io/badge/license-MIT-blue)
+
 # G25 Shifter Arduino Support
 
 Standalone, configurable support for the Logitech G25 shifter using an Arduino.
@@ -125,3 +127,9 @@ driver/config.json
   - The baud rate matches `driver/config.json`
 
 - Make sure the Arduino Serial Monitor is closed before starting the Python driver, since only one application can access the serial port at a time.
+
+# License
+
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for details.
