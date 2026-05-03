@@ -9,7 +9,6 @@ import config as cfg
 from logging_setup import setup_logging
 from serial_reader import serial_thread
 from loop import main_loop
-from calibration import calibrate_cli
 import input_state
 
 log = setup_logging()
@@ -21,7 +20,6 @@ def main():
   p.add_argument("--config", "-c", default=None)
   p.add_argument("--port", default=None)
   p.add_argument("--baud", type=int, default=None)
-  p.add_argument("--calibrate", action="store_true")
   args = p.parse_args()
 
   conf = cfg.load_config(args.config)
@@ -43,10 +41,6 @@ def main():
   t.start()
 
   time.sleep(0.1)
-
-  if args.calibrate:
-    calibrate_cli(args.config)
-    sys.exit(0)
 
   if args.gui:
     main_t = threading.Thread(
