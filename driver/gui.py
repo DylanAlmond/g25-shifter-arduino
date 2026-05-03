@@ -193,10 +193,6 @@ class MappingEditor(tk.Toplevel):
 
     poll()
 
-  def _on_key_for_button(self, event):
-    # legacy handler — no longer used
-    return
-
 
 def gui_loop(state: dict, lock, config_path=None):
   conf = cfg.load_config(config_path)
@@ -333,20 +329,10 @@ def gui_loop(state: dict, lock, config_path=None):
 
   tk.Label(root, textvariable=status_var, fg="blue").pack()
 
-  # Port selector frame
-  try:
-    import serial.tools.list_ports as list_ports
-    LIST_PORTS_AVAILABLE = True
-  except ImportError:
-    list_ports = None
-    LIST_PORTS_AVAILABLE = False
-
   port_frame = tk.Frame(root)
   port_frame.pack(fill="x", padx=6, pady=4)
 
   tk.Label(port_frame, text="COM Port:").pack(side="left")
-
-  port_menu = None
 
   def list_com_ports() -> list:
     return ui_backend.list_com_ports()

@@ -7,27 +7,6 @@ import config as cfg
 log = logging.getLogger("g25-driver")
 
 
-DEFAULT_BUTTON_POSITIONS = {
-    # Black button
-    "7": {"x": 240, "y": 80},
-    "6": {"x": 270, "y": 105},
-    "4": {"x": 240, "y": 130},
-    "5": {"x": 210, "y": 105},
-
-    # D-Pad
-    "0": {"x": 240, "y": 170},
-    "1": {"x": 240, "y": 210},
-    "2": {"x": 210, "y": 188},
-    "3": {"x": 270, "y": 188},
-
-    # Red buttons
-    "8": {"x": 180, "y": 245},
-    "10": {"x": 220, "y": 245},
-    "11": {"x": 260, "y": 245},
-    "9": {"x": 300, "y": 245}
-}
-
-
 def save_config(conf: dict, path: Optional[str] = None) -> Tuple[bool, Optional[str]]:
   """Save config using `config.save_config` and return (ok, error_message).
 

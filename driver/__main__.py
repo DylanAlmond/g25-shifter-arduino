@@ -1,7 +1,6 @@
 import argparse
 import threading
 import time
-import sys
 
 import gui
 import config as cfg

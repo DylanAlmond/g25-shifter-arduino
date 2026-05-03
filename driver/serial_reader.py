@@ -32,11 +32,6 @@ def switch_port(new_port: str):
   log.info(f"Requested serial port switch to {new_port}")
 
 
-def current_port():
-  with _port_lock:
-    return _current_port
-
-
 def parse_line(line: str):
   parts = line.split(",")
 

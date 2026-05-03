@@ -6,8 +6,6 @@ try:
 except ImportError:
   keyboard = None
 
-from input_state import state, lock
-
 log = logging.getLogger("g25-driver")
 
 last_gear = None
