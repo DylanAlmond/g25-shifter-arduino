@@ -1,11 +1,8 @@
 /*
-  Logitech G25 Shifter (NO SPAM VERSION)
+  Logitech G25 Shifter
 
   - Reads 16-bit shift register
-  - Gear detection via X/Y
-  - Reverse = 6th gear + button bit
-  - LED flicker on change
-  - ONLY sends serial on state change (IMPORTANT FIX)
+  - Sends raw X/Y and 16-bit button state on change
 */
 
 #define POWER_LED 4
@@ -17,27 +14,18 @@
 #define X_AXIS A0
 #define Y_AXIS A2
 
-#define DEADZONE 80
-#define REVERSE_BUTTON (1 << 14)
-
 // ---------------- STATE ----------------
-
-int OFFSET_X = 0;
-int OFFSET_Y = 0;
-
-String lastGear = "N";
-uint16_t lastButtons = 0;
 
 unsigned long flashTime = 0;
 
-String lastSentGear = "";
 uint16_t lastSentButtons = 0;
 int lastSentX = 0;
 int lastSentY = 0;
 
 // ---------------- READ 16 BITS ----------------
 
-uint16_t readButtonsRaw16() {
+uint16_t readButtonsRaw16()
+{
 
   uint16_t data = 0;
 
@@ -46,7 +34,8 @@ uint16_t readButtonsRaw16() {
   digitalWrite(LATCH_PIN, HIGH);
   delayMicroseconds(5);
 
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 16; i++)
+  {
 
     data <<= 1;
 
@@ -64,50 +53,17 @@ uint16_t readButtonsRaw16() {
 
 // ---------------- ANALOG ----------------
 
-int readCentered(int pin) {
+int readCentered(int pin)
+{
   return analogRead(pin) - 512;
 }
 
-// ---------------- GEAR LOGIC ----------------
-
-String getGear(int x, int y, uint16_t buttons) {
-
-  x += OFFSET_X;
-  y = -y + OFFSET_Y;
-
-  bool reversePressed = (buttons & REVERSE_BUTTON);
-
-  if (abs(x) < DEADZONE && abs(y) < DEADZONE) return "N";
-
-  if (x < -DEADZONE) {
-    if (y < -DEADZONE) return "1";
-    if (y > DEADZONE) return "2";
-    return "N";
-  }
-
-  if (abs(x) <= DEADZONE) {
-    if (y < -DEADZONE) return "3";
-    if (y > DEADZONE) return "4";
-    return "N";
-  }
-
-  if (x > DEADZONE) {
-    if (y < -DEADZONE) return "5";
-
-    if (y > DEADZONE) {
-      if (reversePressed) return "R";
-      return "6";
-    }
-
-    return "N";
-  }
-
-  return "N";
-}
+// Arduino no longer computes gear; driver handles gear detection/calibration.
 
 // ---------------- SETUP ----------------
 
-void setup() {
+void setup()
+{
 
   Serial.begin(250000);
 
@@ -127,53 +83,37 @@ void setup() {
 
 // ---------------- LOOP ----------------
 
-void loop() {
+void loop()
+{
 
   int x = readCentered(X_AXIS);
   int y = readCentered(Y_AXIS);
   uint16_t buttons = readButtonsRaw16();
 
-  String gear = getGear(x, y, buttons);
+  // Send raw data whenever X, Y, or buttons change. Python driver handles gear logic.
+  bool changed = (x != lastSentX) || (y != lastSentY) || (buttons != lastSentButtons);
 
-  // ---------------- CHANGE DETECTION ----------------
-
-  bool changed = (gear != lastGear) || (buttons != lastButtons);
-
-  // LED flicker logic still works
-  if (changed) {
+  if (changed)
+  {
     flashTime = millis();
-    lastGear = gear;
-    lastButtons = buttons;
-  }
+    lastSentX = x;
+    lastSentY = y;
+    lastSentButtons = buttons;
 
-  if (millis() - flashTime < 80) {
-    digitalWrite(POWER_LED, HIGH);
-  } else {
-    digitalWrite(POWER_LED, LOW);
-  }
-
-  // ---------------- ONLY SEND SERIAL ON CHANGE ----------------
-
-  if (changed) {
-
-    Serial.print("G,");
-    Serial.print(gear);
-    Serial.print(",");
+    // Header 'R' for raw
+    Serial.print("R,");
     Serial.print(x);
     Serial.print(",");
     Serial.print(y);
     Serial.print(",");
 
-    for (int i = 15; i >= 0; i--) {
+    for (int i = 15; i >= 0; i--)
+    {
       Serial.print(bitRead(buttons, i));
     }
 
     Serial.println();
-
-    // OPTIONAL DEBUG PRINT (ONLY WHEN SENDING)
-    // Serial.println("SENT");
   }
 
   delay(50);
 }
-
