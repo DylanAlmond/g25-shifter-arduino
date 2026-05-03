@@ -226,6 +226,12 @@ def gui_loop(state: dict, lock, config_path=None):
   raw_var = tk.StringVar()
   status_var = tk.StringVar()
 
+  # serial port selection
+  port_var = tk.StringVar()
+  # initialize from config if present
+  port_var.set(conf.get("serial", {}).get("port", ""))
+  port_status_var = tk.StringVar()
+
   tk.Label(root, textvariable=gear_var, font=("Arial", 20)).pack()
   tk.Label(root, textvariable=xy_var).pack()
   tk.Label(root, textvariable=btn_var).pack()
@@ -333,6 +339,82 @@ def gui_loop(state: dict, lock, config_path=None):
             command=reload_conf).pack(side="left", padx=6)
 
   tk.Label(root, textvariable=status_var, fg="blue").pack()
+
+  # Port selector frame
+  try:
+    import serial.tools.list_ports as list_ports
+    LIST_PORTS_AVAILABLE = True
+  except Exception:
+    list_ports = None
+    LIST_PORTS_AVAILABLE = False
+
+  port_frame = tk.Frame(root)
+  port_frame.pack(fill="x", padx=6, pady=4)
+
+  tk.Label(port_frame, text="COM Port:").pack(side="left")
+
+  port_menu = None
+
+  def list_com_ports() -> list:
+    if LIST_PORTS_AVAILABLE and list_ports:
+      try:
+        ports = [p.device for p in list_ports.comports()]
+        return ports
+      except Exception:
+        return []
+    return []
+
+  def refresh_ports():
+    ports = list_com_ports()
+    menu = port_option['menu']
+    menu.delete(0, 'end')
+    for p in ports:
+      menu.add_command(label=p, command=lambda v=p: on_port_selected(v))
+    # choose sensible default: prefer configured port, else keep current, else first
+    cfg_port = conf.get("serial", {}).get("port")
+    if cfg_port and cfg_port in ports:
+      port_var.set(cfg_port)
+    elif port_var.get() and port_var.get() in ports:
+      # keep current selection
+      pass
+    elif ports:
+      port_var.set(ports[0])
+
+  def on_port_selected(port):
+    port_var.set(port)
+    # save to config first
+    try:
+      conf.setdefault("serial", {})["port"] = port
+      cfg.save_config(conf, config_path)
+      saved = True
+    except Exception as e:
+      port_status_var.set(f"Failed to save config: {e}")
+      saved = False
+
+    # request serial switch
+    try:
+      from serial_reader import switch_port
+      switch_port(port)
+      if saved:
+        port_status_var.set(f"Saved & switching to {port}")
+      else:
+        port_status_var.set(f"Switching to {port} (config save failed)")
+    except Exception as e:
+      if saved:
+        port_status_var.set(f"Saved to config, but failed to switch: {e}")
+      else:
+        port_status_var.set(f"Failed to switch and save: {e}")
+
+  port_option = tk.OptionMenu(port_frame, port_var, "")
+  port_option.pack(side="left", padx=6)
+  tk.Button(port_frame, text="Refresh", command=refresh_ports).pack(side="left")
+  tk.Label(port_frame, textvariable=port_status_var).pack(side="left", padx=6)
+
+  # initial population
+  try:
+    refresh_ports()
+  except Exception:
+    pass
 
   # create overlay rectangles for configured button positions
   overlay_items = {}
